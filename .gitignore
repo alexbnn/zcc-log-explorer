@@ -1,0 +1,5 @@
+node_modules/
+samples/
+*.log
+*.log.zip
+.DS_Store

@@ -1,0 +1,17 @@
+{
+  "name": "zcc-log-explorer",
+  "version": "0.1.0",
+  "description": "Local web explorer for Zscaler Client Connector logs, focused on ZPA",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "start:lan": "HOST=0.0.0.0 node server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  }
+}
