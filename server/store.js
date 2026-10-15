@@ -5,7 +5,7 @@ import { buildTimeline } from './parser.js';
 import { analyzeZpa, summarizeApps } from './zpa.js';
 import { triage } from './errors.js';
 import { analyzeZia, summarizeHosts } from './zia.js';
-import { FLAG_ZIA } from './parser.js';
+import { FLAG_ZIA, TS_MODE } from './parser.js';
 
 const datasets = new Map();
 
@@ -64,6 +64,7 @@ class Dataset {
     const files = tl.files;
     this.ready = true;
     this.buildMs = Date.now() - t0;
+    for (const f of files) if (!f.entries && f.lines) this.warnings.push(`Skipped ${f.name}: no ZCC-format timestamps`);
     if (!files.some((f) => f.component === 'Tunnel')) {
       this.warnings.push('No ZSATunnel log found. ZPA views need ZSATunnel_*.log files.');
     }
@@ -101,6 +102,7 @@ class Dataset {
       fileList: this.files,
       range: tl.length ? { from: tl.ts[0], to: tl.ts[tl.length - 1] } : null,
       tz: mostCommonTz(tl),
+      tsMode: TS_MODE,
       levels,
       components: comps,
       zpa: {

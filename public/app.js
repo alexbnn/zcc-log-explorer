@@ -87,20 +87,21 @@ function toast(msg) {
 }
 
 // ---------------------------------------------------------------- time
-// Show times in the offset the logs were written in, so they line up with what the user saw.
+// Timestamps arrive as epoch ms and are shown in the viewer's own time zone.
 
-function tzOffsetMin() {
-  const tz = state.summary?.tz || '';
-  const m = /^([+-])(\d\d):?(\d\d)$/.exec(tz);
-  if (!m) return -new Date().getTimezoneOffset();
-  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
+const VIEWER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+function tzAbbr(ts) {
+  const part = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+    .formatToParts(new Date(ts ?? Date.now()))
+    .find((x) => x.type === 'timeZoneName');
+  return part?.value || VIEWER_TZ;
 }
 function fmtTs(ts, { date = true, ms = true } = {}) {
   if (ts == null) return '—';
-  const d = new Date(ts + tzOffsetMin() * 60000);
+  const d = new Date(ts);
   const p = (n, w = 2) => String(n).padStart(w, '0');
-  const t = `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}${ms ? '.' + p(d.getUTCMilliseconds(), 3) : ''}`;
-  return date ? `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${t}` : t;
+  const t = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}${ms ? '.' + p(d.getMilliseconds(), 3) : ''}`;
+  return date ? `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${t}` : t;
 }
 function fmtDur(ms) {
   if (ms == null) return '—';
@@ -436,7 +437,7 @@ const views = {
         <div class="card"><h2>Top ZPA error codes</h2><div id="ovErrors"></div></div>
         <div class="card"><h2>Log bundle</h2>
           <dl class="kv">
-            <dt>Time range</dt><dd>${s.range ? `${esc(fmtTs(s.range.from, { ms: false }))} → ${esc(fmtTs(s.range.to, { ms: false }))} <span class="muted">(${fmtDur(s.range.to - s.range.from)}, UTC${esc(s.tz)})</span>` : '—'}</dd>
+            <dt>Time range</dt><dd>${s.range ? `${esc(fmtTs(s.range.from, { ms: false }))} → ${esc(fmtTs(s.range.to, { ms: false }))} <span class="muted">(${fmtDur(s.range.to - s.range.from)}, ${esc(VIEWER_TZ)})</span>` : '—'}</dd>
             <dt>Lines</dt><dd>${fmtN(s.entries)} <span class="muted">· ${fmtN(s.levels.ERR)} ERR · ${fmtN(s.levels.WAR)} WAR</span></dd>
             <dt>Tunnel ID</dt><dd class="mono">${esc(z.info.tunnelIds.join(', ') || '—')}</dd>
             <dt>Parsed in</dt><dd>${fmtN(s.buildMs)} ms</dd>
@@ -1053,7 +1054,7 @@ async function renderTimeline(el, params) {
         html += `<div class="tl-row loading" style="top:${k * ROW}px"><span class="t"></span><span class="m">…</span></div>`;
         continue;
       }
-      html += `<div class="tl-row ${tl.selected === e.i ? 'sel' : ''}" data-k="${k}" data-i="${e.i}" style="top:${k * ROW}px"><span class="t">${esc(e.time.slice(0, 23))}</span><span class="lv lv-${e.lvl}">${e.lvl}</span><span class="c">${esc(e.comp)}</span><span class="m">${hl(e.msg)}${e.multi ? ' <span class="more">⏎</span>' : ''}</span></div>`;
+      html += `<div class="tl-row ${tl.selected === e.i ? 'sel' : ''}" data-k="${k}" data-i="${e.i}" style="top:${k * ROW}px"><span class="t" title="Log text: ${esc(e.time)}">${esc(fmtTs(e.ts))}</span><span class="lv lv-${e.lvl}">${e.lvl}</span><span class="c">${esc(e.comp)}</span><span class="m">${hl(e.msg)}${e.multi ? ' <span class="more">⏎</span>' : ''}</span></div>`;
     }
     spacer.innerHTML = html;
   }
@@ -1111,7 +1112,8 @@ async function renderTimeline(el, params) {
     box.innerHTML = `
       <div class="tl-detail-head">
         <span class="lv-${e.lvl}" style="font-weight:600">${e.lvl}</span>
-        <span class="mono">${esc(e.time)}${e.tz ? ` (${esc(e.tz)})` : ''}</span>
+        <span class="mono">${esc(fmtTs(e.ts))} ${esc(tzAbbr(e.ts))}</span>
+        <span class="muted mono" title="Timestamp as written in the log file">log: ${esc(e.time)}${e.tz ? `(${esc(e.tz)})` : ''}</span>
         <span class="muted">${esc(e.file)}:${e.line}</span>
         <span class="muted">pid ${e.pid ?? '—'} · tid ${e.tid ?? '—'}</span>
         <span class="spacer"></span>

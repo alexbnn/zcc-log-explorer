@@ -6,12 +6,19 @@
 // (e.g. pretty-printed XPC dictionaries). The header regex is deliberately
 // lenient about the offset/pid/level parts so Linux builds that vary slightly
 // still parse.
+//
+// Timestamps: ZCC on macOS writes the UTC wall clock but labels it with the
+// machine's local offset (a line stamped "23:55:15(-0400)" was written at
+// 19:55 EDT). So by default the clock is read as UTC and the label is kept
+// only for display. Set ZCC_TS_MODE=offset to honor the label instead.
 
 import { unzipSync } from 'fflate';
 import path from 'node:path';
 
 const HEADER_RX =
   /^(\d{4})-(\d\d)-(\d\d)[ T](\d\d):(\d\d):(\d\d)(?:[.,](\d{1,9}))?\s*(?:\(?\s*(Z|[+-]\d\d:?\d\d)\s*\)?)?\s*(?:\[(\d+):(\d+)\])?\s*(DBG|INF|WAR|WRN|ERR|FTL|TRC|DEBUG|INFO|WARN|WARNING|ERROR|FATAL|TRACE|CRITICAL)?\s?(.*)$/;
+
+export const TS_MODE = process.env.ZCC_TS_MODE === 'offset' ? 'offset' : 'utc';
 
 export const LEVELS = ['DBG', 'INF', 'WAR', 'ERR'];
 export const FLAG_NOISE = 1;
@@ -75,7 +82,7 @@ export function isLogFileName(name, { includeUpm = false } = {}) {
 function parseTs(m) {
   const frac = (m[7] || '0').padEnd(6, '0');
   let ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) + Number(frac.slice(0, 6)) / 1000;
-  return ms - tzMinutes(m[8]) * 60000;
+  return TS_MODE === 'offset' ? ms - tzMinutes(m[8]) * 60000 : ms;
 }
 
 // "-0400" / "+05:30" / "Z" → minutes east of UTC. Lines without an offset are treated as UTC.
@@ -141,9 +148,14 @@ function parseInto(text, fileIdx, cols) {
   // Give preamble lines the first real timestamp so they sort with their file.
   let real = first;
   while (real < cols.ts.length && Number.isNaN(cols.ts[real])) real++;
+  if (real === cols.ts.length) {
+    // No ZCC-format timestamps at all (e.g. routeMonitor.log): not a log we can place on the timeline.
+    for (const col of Object.values(cols)) col.length = first;
+    return { lines: lineNo, entries: 0 };
+  }
   for (let k = first; k < real; k++) {
-    cols.ts[k] = real < cols.ts.length ? cols.ts[real] : 0;
-    cols.tz[k] = real < cols.ts.length ? cols.tz[real] : 0;
+    cols.ts[k] = cols.ts[real];
+    cols.tz[k] = cols.tz[real];
   }
   return { lines: lineNo, entries: cols.ts.length - first };
 }
@@ -224,9 +236,9 @@ export class Timeline {
     const nl = t.indexOf('\n', this.start[i]);
     return nl !== -1 && nl < this.end[i];
   }
-  /** Original timestamp text, e.g. "2026-10-14 18:20:30.383195", in the line's own offset. */
+  /** Original timestamp text as written in the log, e.g. "2026-10-14 18:20:30.383195". */
   time(i) {
-    const us = Math.round(this.ts[i] * 1000) + this.tz[i] * 60e6;
+    const us = Math.round(this.ts[i] * 1000) + (TS_MODE === 'offset' ? this.tz[i] * 60e6 : 0);
     const d = new Date(Math.floor(us / 1000));
     const p = (n, w = 2) => String(n).padStart(w, '0');
     return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}.${p(((us % 1e6) + 1e6) % 1e6, 6)}`;

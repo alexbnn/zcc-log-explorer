@@ -49,7 +49,8 @@ test('parses headers, offsets, preamble and multi-line entries', () => {
   assert.equal(tl.msg(0), 'Redirected stderr');
   assert.equal(tl.tzText(0), '-0400'); // preamble inherits the first real line's offset
   assert.equal(tl.time(1), '2026-10-14 10:00:00.000001');
-  assert.equal(tl.ts[1], Date.UTC(2026, 9, 14, 14, 0, 0) + 0.001);
+  // ZCC writes the UTC clock with a local-offset label, so the clock is read as UTC.
+  assert.equal(tl.ts[1], Date.UTC(2026, 9, 14, 10, 0, 0) + 0.001);
   const multi = [...Array(tl.length).keys()].find((i) => tl.msg(i).startsWith('Ignored response'));
   assert.ok(tl.isMulti(multi));
   assert.ok(tl.msg(multi).endsWith('}'));

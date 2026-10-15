@@ -19,6 +19,7 @@ Then either drop an exported log bundle (`.zip`, `ZSATunnel_*.log`, rotated `*.l
 |---|---|---|
 | `PORT` | `4780` | |
 | `HOST` | `127.0.0.1` | Set to `0.0.0.0` to expose on the network. The app has no auth. |
+| `ZCC_TS_MODE` | `utc` | ZCC on macOS writes the UTC clock but labels lines with the local offset (`23:55:15(-0400)` was written at 19:55 EDT), so the clock is read as UTC. Set to `offset` to trust the label instead. |
 | `ZCC_LOG_DIRS` | macOS: `/Library/Application Support/Zscaler` | Colon-separated. The Linux defaults (`/var/log/zscaler`, `/opt/zscaler/...`) are unverified guesses. |
 
 ## Views
@@ -44,6 +45,8 @@ ZPA activity is read from `ZSATunnel_*.log`. The broker protocol is logged as JS
 `server/zpa.js` extracts these messages to build sessions, segments and mTunnels.
 
 ZIA connections are logged per connection ID (`ID=123, TUN-Proxy: connection to …`, `SNI-Host=…`, `PAC Parse Action: …`, `~ZTCPServerConnection state=closed … srv_bytes=…`), and tunnel state changes appear as `Changing ZIA state from: X to Y`. `server/zia.js` assembles these into connections and lifecycle events.
+
+The UI shows every time in the viewer's browser time zone; the timeline detail pane also shows the timestamp exactly as written in the log.
 
 ZCC version and user notifications come from `ZSAService_*.log`. Segment matching in the UI approximates the client's most-specific-match rule; the broker's access policy still makes the final decision.
 
